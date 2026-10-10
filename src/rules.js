@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import YAML from "yaml";
 import { config } from "./env.js";
-import { rows } from "./ch.js";
+import { rows } from "./db.js";
 
 // A rule file carries its advisory, package and kind in metadata; that is the whole index.
 export async function loadRules(dir = config.rulesDir) {
@@ -33,7 +33,7 @@ export function reachabilityRulesFor(rules, advisoryId) {
 // Ids in excludeIds are skipped: a rule that also lives in rules/ would make Semgrep report each finding twice.
 export async function storedGuardrailConfigs({ excludeIds = new Set() } = {}) {
   const guardrails = await rows(
-    "SELECT id, advisory_id, kind, package, affected_range, rule_yaml FROM guardrails WHERE validated = 1 ORDER BY created_at",
+    "SELECT id, advisory_id, kind, package, affected_range, rule_yaml FROM guardrails WHERE validated ORDER BY created_at",
   );
   const dir = join(config.outDir, "guardrails");
   await mkdir(dir, { recursive: true });

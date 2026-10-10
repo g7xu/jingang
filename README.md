@@ -112,16 +112,17 @@ flowchart TD
 
 ## Install
 
-Needs Node 22+, the Semgrep CLI, a ClickHouse you can reach over HTTP, and a local clone of the demo app next to this repo.
+Needs Node 22+, the Semgrep CLI, Postgres (Neon, or the local container below), and a clone of the demo app next to this repo.
 
 ```bash
 git clone https://github.com/g7xu/jingang-demo-app ../jingang-demo-app && (cd ../jingang-demo-app && npm install)
+docker run -d --name jingang-pg -e POSTGRES_PASSWORD=jingang -e POSTGRES_DB=jingang -p 5433:5432 postgres:16-alpine
 npm install
 cp .env.example .env
 npm run schema
 ```
 
-With only the `CLICKHOUSE_*` variables set, AkashML text is templated and the PR step writes its body to `out/` instead of opening a pull request. Add keys to `.env` to switch each step live; see [Configuration](docs/reference/configuration.md).
+With only `DATABASE_URL` set, the PR explanation is templated and the PR step is dry: the body lands in the `pr` event instead of on GitHub. Add keys to `.env` to switch each step live; see [Configuration](docs/reference/configuration.md).
 
 ## Run
 
@@ -137,15 +138,13 @@ For a clean recording, wipe earlier runs first and replay the suppressed advisor
 npm run schema -- --reset && npm run replay -- GHSA-35jh-r3h4-6jhm && npm run replay -- GHSA-p6mc-m468-83gw && npm run replay -- GHSA-fvqr-27wr-82fm
 ```
 
-Start the dashboard and API on http://localhost:8787, then poll the GitHub Advisory API live:
-
-```bash
-npm run api
-```
+Poll the GitHub Advisory API live, once a minute:
 
 ```bash
 npm run watch
 ```
+
+The dashboard is the website in `web/`.
 
 ## Documentation
 

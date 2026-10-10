@@ -4,9 +4,9 @@ Instructions for AI coding agents working in this repository. Humans: the same r
 
 ## What this is
 
-Jingang watches npm advisory feeds, confirms with Semgrep whether the demo app actually calls the vulnerable function, opens a verified upgrade PR, and stores two guardrails so the bug cannot return. It is a one-day hackathon build (Oct 9, 2026) with a hard deadline of 16:30.
+Jingang watches npm advisory feeds, confirms with Semgrep whether the demo app actually calls the vulnerable function, opens a verified upgrade PR, and stores two guardrails so the bug cannot return. It was built in one day at a hackathon (Oct 9, 2026) and now runs on free tiers: a website on Vercel, Postgres on Neon, the model through Vercel AI Gateway, and each run inside a Vercel Sandbox.
 
-The spec is [docs/prd.md](docs/prd.md). Read its "The loop", "Rules", and "ClickHouse data model" sections before writing pipeline code. Do not restate the PRD in code comments or new docs; link to it.
+The spec is [docs/prd.md](docs/prd.md). Read its "The loop" and "Rules" sections before writing pipeline code; its data model names ClickHouse, which [docs/explanation/hosting.md](docs/explanation/hosting.md) maps to Postgres. Do not restate the PRD in code comments or new docs; link to it.
 
 ## Vocabulary
 
@@ -18,26 +18,26 @@ Use these words exactly, in code, dashboard labels, and PR text. They are define
 
 ## Constraints that are easy to violate
 
-- **Build order is the Must list** in the PRD's "Scope and timeline". Finish an item before starting the next; a stop at any line must leave a working demo.
-- **ClickHouse tables are append-only.** Insert events; read current status with `argMax(status, ts)`. Never `UPDATE`.
+- **`events` is append-only.** Insert a new row for every status; read current status through the `latest_status` view. Never `UPDATE` or `DELETE` an event.
 - **Semver logic runs in Node**, with the `semver` package, never in SQL.
-- **Model output is untrusted.** Generated rules run only after the fixture gate. Facts in a PR body (versions, file, line, advisory link) come from data; AkashML writes only the explanation around them.
-- **Never push to `main`.** Every change to the demo repo is a PR on a new branch.
+- **Model output is untrusted.** Generated rules run only after the fixture gate. Facts in a PR body (versions, file, line, advisory link) come from data; the model writes only the explanation around them, and `acceptableExplanation` rejects anything else.
+- **Never push to `main`** of the demo repo. Every change there is a PR on a new branch.
+- **Website visitors only ever get dry runs.** A real PR needs the `RUN_SECRET` header; the GitHub token enters the sandbox only on those runs.
 - **Secrets live in environment variables only.** `.env` is ignored; `.env.example` lists names. Adding a variable means adding it to `.env.example` and to [docs/reference/configuration.md](docs/reference/configuration.md).
-- **Every component must run with only `CLICKHOUSE_*` set.** A missing AkashML key means templated text; a missing GitHub token means the PR body is printed, not opened.
-- **Re-fetch, don't read back.** See [docs/explanation/data-freshness.md](docs/explanation/data-freshness.md) before writing anything that reads a row it just wrote.
+- **The pipeline must run with only `DATABASE_URL` set.** A missing model credential means templated text; a missing GitHub token or repo means a dry PR.
+- **Pass data forward, don't read it back.** See [docs/explanation/data-freshness.md](docs/explanation/data-freshness.md).
 
 ## Repository layout
 
 | Path | Contents |
 | --- | --- |
-| `docs/prd.md` | The spec. Edit only when the team doc changes. |
-| `docs/reference/` | Lookup tables (configuration). |
-| `docs/explanation/` | Design rationale. |
-| `rules/*.yaml` | Hand-written Semgrep rules and their fixtures, validated in the Semgrep Playground before commit. |
-| `.env.example` | Variable names with placeholder values. |
-
-Pipeline code has no home yet. When it does, add its directory here with one line.
+| `src/` | The pipeline: watcher, the eight-step loop, Postgres access. Runs on a laptop or in a Vercel Sandbox. |
+| `rules/` | Hand-written Semgrep rules and their fixtures, checked by `test/rules.test.js`. |
+| `test/` | `node:test` unit tests; none of them need a database. |
+| `web/` | The Next.js website and its API routes, deployed to Vercel with `web` as the root directory. |
+| `deploy/` | Files seeded into the demo repo by hand, and the Akash manifest kept from the hackathon. |
+| `docs/prd.md` | The hackathon spec. Edit only when the team doc changes. |
+| `docs/reference/`, `docs/explanation/` | Lookup tables and design rationale. |
 
 ## Writing docs and comments
 
