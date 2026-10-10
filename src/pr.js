@@ -107,15 +107,15 @@ Opened by Jingang. Detection to PR: ${Math.round(f.detectionToPrMs / 1000)} s. R
 export async function explain(f) {
   const fallback = `Your lockfile has ${f.package} ${f.fromVersion}, inside the range affected by ${f.advisory.id} (${f.advisory.summary}). Jingang confirmed the code calls the vulnerable function at ${f.callSites[0]?.file}:${f.callSites[0]?.line}, so this is exposure, not just an old version. The upgrade to ${f.toVersion} is the newest release outside every known advisory for this package.`;
   const template = (reason) => ({ text: fallback, source: "template", reason });
-  if (mode.akash !== "live") return template("no AKASHML_API_KEY");
+  if (mode.llm !== "live") return template("no model credential");
   try {
     // A slow or dead model endpoint must never hold up the PR; the template is always acceptable.
-    const res = await fetch(`${config.akash.baseUrl}/chat/completions`, {
+    const res = await fetch(`${config.llm.baseUrl}/chat/completions`, {
       method: "POST",
       signal: AbortSignal.timeout(90_000),
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.akash.apiKey}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.llm.apiKey}` },
       body: JSON.stringify({
-        model: config.akash.model,
+        model: config.llm.model,
         // Reasoning models spend part of this budget thinking; too small a cap truncates the visible answer.
         max_tokens: 1500,
         reasoning_effort: "low",
@@ -171,25 +171,35 @@ export async function openPr({ repoPath, branch, title, body, runId, labels = []
   if (mode.github !== "live") return { url: null, mode: "dry", bodyPath, branch };
 
   const { token, repo } = config.github;
-  const pushTarget = token ? `https://github.com/${repo}.git` : "origin";
-  await git(repoPath, ["push", "-q", "-f", pushTarget, `${branch}:${branch}`], tokenEnv(token));
+  await git(repoPath, ["push", "-q", "-f", `https://github.com/${repo}.git`, `${branch}:${branch}`], tokenEnv(token));
   const base = await defaultBranch(repoPath);
-  const env = token ? { ...process.env, GH_TOKEN: token } : process.env;
-  const create = (withLabels) =>
-    run(
-      "gh",
-      ["pr", "create", "--repo", repo, "--head", branch, "--base", base, "--title", title, "--body-file", bodyPath, ...withLabels.flatMap((l) => ["--label", l])],
-      { env },
-    );
-  // A label must already exist in the repo; when it does not, the PR still opens with the title suffix alone.
-  let labelsApplied = labels;
-  let result;
-  try {
-    result = await create(labels);
-  } catch (err) {
-    if (labels.length === 0) throw err;
-    labelsApplied = [];
-    result = await create([]);
+  const pr = await githubApi(token, "POST", `/repos/${repo}/pulls`, { title, body, head: branch, base });
+  // A label must already exist in the repo; when it does not, the PR keeps the title suffix alone.
+  let labelsApplied = [];
+  if (labels.length) {
+    try {
+      await githubApi(token, "POST", `/repos/${repo}/issues/${pr.number}/labels`, { labels });
+      labelsApplied = labels;
+    } catch {
+      labelsApplied = [];
+    }
   }
-  return { url: result.stdout.trim().split("\n").pop(), mode: "live", bodyPath, branch, labelsApplied };
+  return { url: pr.html_url, mode: "live", bodyPath, branch, labelsApplied };
+}
+
+async function githubApi(token, method, path, payload) {
+  const res = await fetch(`https://api.github.com${path}`, {
+    method,
+    signal: AbortSignal.timeout(30_000),
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "jingang",
+    },
+    body: payload ? JSON.stringify(payload) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`GitHub ${method} ${path}: ${res.status} ${data.message ?? ""}`.trim());
+  return data;
 }

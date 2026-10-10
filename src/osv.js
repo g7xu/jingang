@@ -84,11 +84,15 @@ export function toAdvisoryRow(vuln, { ecosystem = "npm", detectedAt = new Date()
     details: `${vuln.summary ?? ""}\n\n${vuln.details ?? ""}`.trim(),
     refs: (vuln.references ?? []).map((r) => r.url),
     fix_commits: fixCommits(vuln),
-    modified: toClickHouseTs(vuln.modified),
-    detected_at: toClickHouseTs(detectedAt),
+    modified: new Date(vuln.modified).toISOString(),
+    detected_at: new Date(detectedAt).toISOString(),
   };
 }
 
-export function toClickHouseTs(value) {
-  return new Date(value).toISOString().replace("T", " ").replace("Z", "");
-}
+// ReplacingMergeTree semantics: an advisory row is replaced only by an equal or newer OSV edit.
+export const ADVISORY_UPSERT = {
+  onConflict: `(id) DO UPDATE SET aliases = EXCLUDED.aliases, package = EXCLUDED.package, ecosystem = EXCLUDED.ecosystem,
+    ranges = EXCLUDED.ranges, details = EXCLUDED.details, refs = EXCLUDED.refs, fix_commits = EXCLUDED.fix_commits,
+    modified = EXCLUDED.modified, detected_at = EXCLUDED.detected_at
+    WHERE EXCLUDED.modified >= advisories.modified`,
+};

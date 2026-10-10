@@ -1,6 +1,6 @@
 import { copyFile, mkdir } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { insert, rows } from "./ch.js";
+import { insert, rows } from "./db.js";
 import { installedVersions } from "./match.js";
 import { isAffected } from "./osv.js";
 
@@ -28,7 +28,7 @@ export async function storeGuardrails({ advisoryId, pkg, ranges, taintRules }) {
       package: pkg,
       affected_range: JSON.stringify(ranges),
       rule_yaml: "",
-      validated: 1,
+      validated: true,
     },
     ...taintRules.map((r) => ({
       id: r.id,
@@ -37,19 +37,20 @@ export async function storeGuardrails({ advisoryId, pkg, ranges, taintRules }) {
       package: pkg,
       affected_range: "",
       rule_yaml: r.yaml,
-      validated: 1,
+      validated: true,
     })),
   ];
-  const ids = candidates.map((c) => `'${c.id}'`).join(",");
-  const existing = new Set((await rows(`SELECT id FROM guardrails WHERE id IN (${ids})`)).map((r) => r.id));
-  const fresh = candidates.filter((c) => !existing.has(c.id));
-  await insert("guardrails", fresh);
-  return { stored: fresh.map((c) => c.id), alreadyPresent: [...existing] };
+  const inserted = await insert("guardrails", candidates, { onConflict: "(id) DO NOTHING", returning: "id" });
+  const stored = new Set(inserted.map((r) => r.id));
+  return { stored: [...stored], alreadyPresent: candidates.map((c) => c.id).filter((id) => !stored.has(id)) };
 }
 
 // Guardrail A at scan time: any stored range the lockfile has drifted back into.
 export async function versionPolicyViolations(repoPath, pkg) {
-  const policies = await rows(`SELECT id, advisory_id, affected_range FROM guardrails WHERE kind = 'version_policy' AND package = '${pkg}'`);
+  const policies = await rows(
+    "SELECT id, advisory_id, affected_range FROM guardrails WHERE kind = 'version_policy' AND package = $1",
+    [pkg],
+  );
   if (policies.length === 0) return [];
   const installed = await installedVersions(repoPath, pkg);
   return policies

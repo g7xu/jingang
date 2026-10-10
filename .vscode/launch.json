@@ -31,15 +31,6 @@
       "args": ["--once"],
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
-    },
-    {
-      "name": "API and dashboard",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/src/api.js",
-      "runtimeArgs": ["--env-file=.env"],
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"]
     }
   ]
 }

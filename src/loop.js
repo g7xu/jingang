@@ -1,18 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
-import { insert } from "./ch.js";
+import { insert } from "./db.js";
 import { config } from "./env.js";
 import { storeGuardrails, versionPolicyViolations, writeGuardrailFiles } from "./guardrails.js";
 import { installedVersions, matchLockfile } from "./match.js";
-import { affectedRanges, isAffected, primaryPackage, toClickHouseTs } from "./osv.js";
+import { affectedRanges, isAffected, primaryPackage } from "./osv.js";
 import { buildBody, explain, headSha, openPr } from "./pr.js";
 import { loadRules, reachabilityRulesFor, storedGuardrailConfigs } from "./rules.js";
 import { scan } from "./semgrep.js";
 import { allAdvisoriesFor, applyUpgrade, newestSafeVersion, runTests } from "./upgrade.js";
 
 // One advisory through the eight steps; every step is one events row and the return value is the summary.
-export async function runAdvisory(vuln, { repoPath = config.demoAppPath, detectedAt = new Date(), source = "replay" } = {}) {
-  const runId = randomUUID().slice(0, 8);
+// runId is supplied by a caller that is already showing the run to someone, such as the website.
+export async function runAdvisory(
+  vuln,
+  { repoPath = config.demoAppPath, detectedAt = new Date(), source = "replay", runId = randomUUID().slice(0, 8) } = {},
+) {
   const repo = config.github.repo || basename(repoPath);
   const summary = { runId, advisoryId: vuln.id, repo, steps: [] };
 
@@ -35,7 +38,7 @@ export async function runAdvisory(vuln, { repoPath = config.demoAppPath, detecte
   const { installed, matched } = await matchLockfile(repoPath, pkg, ranges);
   const sha = await headSha(repoPath);
   if (installed.length) {
-    await insert("lockfiles", installed.map((i) => ({ repo, commit_sha: sha, package: pkg, version: i.version, ts: toClickHouseTs(new Date()) })));
+    await insert("lockfiles", installed.map((i) => ({ repo, commit_sha: sha, package: pkg, version: i.version })));
   }
   if (matched.length === 0) {
     await log("match", "not_in_range", { package: pkg, installed: installed.map((i) => i.version), ranges }, t);
@@ -113,11 +116,12 @@ export async function runAdvisory(vuln, { repoPath = config.demoAppPath, detecte
   const explanation = await explain(facts);
   facts.explanation = explanation.text;
   const title = `fix(deps): upgrade ${pkg} ${fromVersion} → ${safeVersion} (${vuln.id})${verified ? "" : " [needs-human]"}`;
+  const body = buildBody(facts);
   const pr = await openPr({
     repoPath,
     branch: `jingang/${vuln.id.toLowerCase()}-${runId}`,
     title,
-    body: buildBody(facts),
+    body,
     runId,
     labels: verified ? [] : ["needs-human"],
   });
@@ -127,7 +131,8 @@ export async function runAdvisory(vuln, { repoPath = config.demoAppPath, detecte
     pr.url ? "opened" : "dry",
     {
       url: pr.url,
-      bodyPath: pr.bodyPath,
+      title,
+      body,
       branch: pr.branch,
       label: verified ? null : "needs-human",
       labels_applied: pr.labelsApplied ?? [],
