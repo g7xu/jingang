@@ -61,6 +61,10 @@ async function refresh(sandbox: Sandbox) {
 
 export const usesSnapshot = () => process.env.JINGANG_RUNNER !== "local" && Boolean(process.env.SANDBOX_SNAPSHOT_ID);
 
+// These go to the pipeline in a file it deletes on startup, never in its environment.
+const SECRET_KEYS = new Set(["DATABASE_URL", "LLM_API_KEY", "GITHUB_TOKEN"]);
+const SECRETS_FILE = `${ROOT}/.jingang-secrets.json`;
+
 export async function runPipeline(args: string[], env: Record<string, string>): Promise<RunResult> {
   if (process.env.JINGANG_RUNNER === "local") return runLocal(args, env);
   const snapshotId = process.env.SANDBOX_SNAPSHOT_ID;
@@ -69,11 +73,14 @@ export async function runPipeline(args: string[], env: Record<string, string>): 
   try {
     if (snapshotId) await refresh(sandbox);
     else await provision(sandbox);
+    const secrets = Object.fromEntries(Object.entries(env).filter(([k]) => SECRET_KEYS.has(k)));
+    const plain = Object.fromEntries(Object.entries(env).filter(([k]) => !SECRET_KEYS.has(k)));
+    await sandbox.writeFiles([{ path: SECRETS_FILE, content: JSON.stringify(secrets), mode: 0o600 }]);
     const result = await sandbox.runCommand({
       cmd: "node",
       args: ["src/watcher.js", ...args],
       cwd: PATHS.jingang,
-      env: { ...env, DEMO_APP_PATH: PATHS.demo },
+      env: { ...plain, DEMO_APP_PATH: PATHS.demo, JINGANG_SECRETS_FILE: SECRETS_FILE },
     });
     return { exitCode: result.exitCode, stdout: tail(await result.stdout()), stderr: tail(await result.stderr()) };
   } finally {
