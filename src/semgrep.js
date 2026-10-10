@@ -1,12 +1,13 @@
 import { execFile } from "node:child_process";
 import { relative } from "node:path";
 import { promisify } from "node:util";
+import { childEnv } from "./env.js";
 
 const run = promisify(execFile);
 
 async function semgrep(args, opts = {}) {
   try {
-    return await run("semgrep", args, { maxBuffer: 64 * 1024 * 1024, ...opts });
+    return await run("semgrep", args, { maxBuffer: 64 * 1024 * 1024, env: childEnv(), ...opts });
   } catch (err) {
     // Exit code 1 means findings were reported, which is a normal result here.
     if (err.code === 1 && err.stdout) return { stdout: err.stdout, stderr: err.stderr };
@@ -16,7 +17,7 @@ async function semgrep(args, opts = {}) {
 
 export async function validateRules(path) {
   try {
-    const { stdout, stderr } = await run("semgrep", ["--metrics=off", "--validate", "--config", path]);
+    const { stdout, stderr } = await run("semgrep", ["--metrics=off", "--validate", "--config", path], { env: childEnv() });
     return { ok: true, output: `${stdout}${stderr}`.trim() };
   } catch (err) {
     return { ok: false, output: `${err.stdout ?? ""}${err.stderr ?? ""}`.trim() };

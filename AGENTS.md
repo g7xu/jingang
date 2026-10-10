@@ -22,7 +22,8 @@ Use these words exactly, in code, dashboard labels, and PR text. They are define
 - **Semver logic runs in Node**, with the `semver` package, never in SQL.
 - **Model output is untrusted.** Generated rules run only after the fixture gate. Facts in a PR body (versions, file, line, advisory link) come from data; the model writes only the explanation around them, and `acceptableExplanation` rejects anything else.
 - **Never push to `main`** of the demo repo. Every change there is a PR on a new branch.
-- **Website visitors only ever get dry runs.** A real PR needs the `RUN_SECRET` header; the GitHub token enters the sandbox only on those runs.
+- **Website visitors only ever get dry runs.** A real PR needs the `RUN_SECRET` header, and only those runs get `GITHUB_REPO`. Feed polls get the token alone, for the higher API limit.
+- **Third-party code never sees a credential.** Anything that runs `npm`, the demo app's tests or Semgrep passes `childEnv()`, and the sandbox gets an AI Gateway key and the `jingang_runner` database role, never the deployment's OIDC token or owner database URL.
 - **Secrets live in environment variables only.** `.env` is ignored; `.env.example` lists names. Adding a variable means adding it to `.env.example` and to [docs/reference/configuration.md](docs/reference/configuration.md).
 - **The pipeline must run with only `DATABASE_URL` set.** A missing model credential means templated text; a missing GitHub token or repo means a dry PR.
 - **Pass data forward, don't read it back.** See [docs/explanation/data-freshness.md](docs/explanation/data-freshness.md).

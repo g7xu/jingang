@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@vercel/oidc": "3.2.0",
     "@vercel/sandbox": "3.6.1",
     "next": "16.4.0",
     "pg": "8.16.3",

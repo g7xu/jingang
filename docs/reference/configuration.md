@@ -20,13 +20,17 @@ All settings are environment variables. The pipeline reads `.env` (copy `.env.ex
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | yes | none | Set by the Neon integration in the Vercel Marketplace. |
+| `DATABASE_URL` | yes | none | Set by the Neon integration in the Vercel Marketplace. The website reads with it. |
+| `RUNNER_DATABASE_URL` | no | `DATABASE_URL` | Connection URL for the `jingang_runner` role, which sandbox runs use. Created by `npm run schema -- --runner-role=<file>`, which writes the URL to that file. |
+| `AI_GATEWAY_API_KEY` | no | empty | AI Gateway key passed into the sandbox for the PR explanation. Empty means the template. The deployment's own OIDC token never enters a sandbox. |
 | `NEXT_PUBLIC_VIDEO_URL` | no | empty | YouTube or Loom link for the demo video. Empty shows a placeholder. |
 | `RUN_SECRET` | yes, for live PRs | empty | Value of the `X-Jingang-Secret` header that turns a run into a real PR. Without it every run is dry. |
 | `CRON_SECRET` | yes, for the cron | empty | Vercel sends it as a bearer token to the daily watch route. |
 | `GITHUB_TOKEN`, `GITHUB_REPO` | for live PRs | empty | Passed into the sandbox only on owner runs. |
 | `SANDBOX_SNAPSHOT_ID` | no | empty | Snapshot with Semgrep and dependencies preinstalled. Empty installs them on every run, about a minute slower. |
 | `JINGANG_GIT_URL` | no | `https://github.com/g7xu/jingang.git` | Repository the sandbox clones to get the pipeline. |
+| `JINGANG_GIT_REF` | no | `main` | Branch of that repository to run. Set it on Preview to test a branch before merging. |
 | `DEMO_APP_GIT_URL` | no | `https://github.com/g7xu/jingang-demo-app.git` | Demo app the sandbox clones and patches. |
+| `JINGANG_RUNNER` | no | `sandbox` | `local` runs the pipeline as a child process of the dev server instead of in a sandbox. Development only. |
 
-On Vercel the model needs no key: the deployment's OIDC token authenticates to AI Gateway and is passed into the sandbox for the run.
+Inside a run, `npm install`, the demo app's tests and Semgrep get only `PATH`, `HOME` and similar basics; no credential reaches third-party code.

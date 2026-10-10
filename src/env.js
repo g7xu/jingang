@@ -20,6 +20,13 @@ export const config = {
   outDir: resolve(env("JINGANG_OUT_DIR", "out")),
 };
 
+// Environment for processes that run third-party code: npm install, the demo app's tests,
+// Semgrep. Only what a toolchain needs to start is passed; every credential is left out.
+const CHILD_ENV_KEYS = ["PATH", "HOME", "USER", "TMPDIR", "TEMP", "TMP", "LANG", "TERM", "SystemRoot", "ComSpec", "PATHEXT", "APPDATA", "LOCALAPPDATA"];
+export function childEnv() {
+  return Object.fromEntries(CHILD_ENV_KEYS.filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k]]));
+}
+
 // A missing credential degrades one step instead of blocking the loop. A real PR needs
 // both the repository and a token scoped to it.
 export const mode = {

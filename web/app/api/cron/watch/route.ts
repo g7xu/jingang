@@ -11,6 +11,6 @@ export async function GET(req: Request) {
   if (!isCron(req)) return Response.json({ error: "unauthorized" }, { status: 401 });
   const runId = await claimPoll("cron", 60);
   if (!runId) return Response.json({ started: false });
-  await executeRun({ runId, advisoryId: "", args: ["--once"], env: await pipelineEnv({ live: false, githubToken: true }) });
+  await executeRun({ runId, advisoryId: "", args: ["--once"], env: pipelineEnv({ live: false, githubToken: true }) });
   return Response.json({ started: true, runId });
 }

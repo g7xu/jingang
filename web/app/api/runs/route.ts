@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const env = await pipelineEnv({ live, githubToken: live });
+  const env = pipelineEnv({ live, githubToken: live });
   after(() => executeRun({ runId, advisoryId, args: ["--replay", advisoryId, "--run-id", runId], env }));
   return Response.json({ runId, mode: live ? "live" : "dry" }, { status: 202 });
 }

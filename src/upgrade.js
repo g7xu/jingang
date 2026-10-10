@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import semver from "semver";
+import { childEnv } from "./env.js";
 import { affectedRanges, isAffected, listVulns } from "./osv.js";
 
 const run = promisify(execFile);
@@ -45,11 +46,17 @@ export async function runTests(repoPath) {
   return npm(repoPath, ["test"]);
 }
 
-// On Windows npm is npm.cmd, which Node only spawns through a shell.
+// On Windows npm is npm.cmd, which Node only spawns through a shell. The demo app's
+// dependencies run here, so they get childEnv() and never see a credential.
 async function npm(cwd, args) {
   const win = process.platform === "win32";
   try {
-    const { stdout, stderr } = await run(win ? `npm ${args.join(" ")}` : "npm", win ? [] : args, { cwd, maxBuffer: 16 * 1024 * 1024, shell: win });
+    const { stdout, stderr } = await run(win ? `npm ${args.join(" ")}` : "npm", win ? [] : args, {
+      cwd,
+      env: childEnv(),
+      maxBuffer: 16 * 1024 * 1024,
+      shell: win,
+    });
     return { ok: true, output: `${stdout}${stderr}`.trim() };
   } catch (err) {
     return { ok: false, output: `${err.stdout ?? ""}${err.stderr ?? ""}`.trim() || err.message };
